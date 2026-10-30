@@ -1,0 +1,48 @@
+server:
+  # 手机端地址 = http://<PC-IP>:19080/api。刻意避开 8080：本机 Spore-GUI 单体与课程 Tomcat
+  # 已占 8080/8081，两套后端要能同时跑（同一 MySQL，互不抢端口）
+  port: 19080
+
+spring:
+  application:
+    name: spore-gateway
+  cloud:
+    gateway:
+      routes:
+        # 认证 / 用户：全部交给 spore-user
+        - id: spore-user
+          uri: lb://spore-user
+          predicates:
+            - Path=/api/auth/**,/api/users/**
+        # 同步 / 题图：全部交给 spore-content
+        - id: spore-content
+          uri: lb://spore-content
+          predicates:
+            - Path=/api/sync/**
+      httpclient:
+        connect-timeout: 3000
+        # 题图上传走网关，别用默认 30s 掐掉大图
+        response-timeout: 60s
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${server.port}
+
+spore:
+  gateway:
+    # 网关与下游服务共享的身份签名密钥；生产环境用环境变量覆盖，别用默认值
+    sign-secret: ${SPORE_SIGN_SECRET:spore-cloud-dev-secret}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    com.offblink.spore.cloud: INFO

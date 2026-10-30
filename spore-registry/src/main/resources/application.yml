@@ -1,0 +1,26 @@
+server:
+  port: 8761
+
+spring:
+  application:
+    name: spore-registry
+
+eureka:
+  instance:
+    hostname: localhost
+  client:
+    # 单节点注册中心：自己既是服务端又不是客户端，别自我注册
+    register-with-eureka: false
+    fetch-registry: false
+    service-url:
+      defaultZone: http://${eureka.instance.hostname}:${server.port}/eureka/
+  server:
+    # 局域网课设规模：关掉自我保护，服务重启后立刻下线旧实例，避免网关路由到死节点
+    enable-self-preservation: false
+    eviction-interval-timer-in-ms: 5000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

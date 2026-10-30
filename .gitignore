@@ -1,0 +1,15 @@
+## 构建产物
+target/
+*.log
+
+## 本机口令/环境（红线：真实 DB 口令不进 git）
+**/application-local.yml
+!**/application-local.yml.example
+
+## 题图题库目录（运行时数据）
+data/
+
+## IDE
+.idea/
+*.iml
+.vscode/
