@@ -42,7 +42,7 @@ cp spore-user/src/main/resources/application-local.yml.example \
 # 2) 打包（父工程一次全打）
 mvn -DskipTests package
 
-# 3) 起服务（或直接双击 start-all.cmd）
+# 3) 起服务（或直接双击 start-all.cmd；脚本会等两个服务真的注册上再起网关）
 java -jar spore-registry/target/spore-registry-0.1.0-SNAPSHOT.jar
 java -jar spore-user/target/spore-user-0.1.0-SNAPSHOT.jar
 java -jar spore-content/target/spore-content-0.1.0-SNAPSHOT.jar
@@ -74,12 +74,29 @@ java -jar spore-gateway/target/spore-gateway-0.1.0-SNAPSHOT.jar
 
 返回统一 `{code,message,data}`，`code=0` 成功；401 也带 R 包装（`40101`）。
 
+## SSM 三层对照（课程口径：认三层形态，Boot 可以）
+
+Spring Cloud 跑在 Spring Boot 上，所以没有 `web.xml` / `spring-mvc.xml` 那套外置 Tomcat 装配
+（`spring-cloud-starter-gateway` 是 WebFlux/Netty，打不了 WAR）。但 SSM 的三层在这套代码里逐层都在：
+
+| 层 | 位置 | 证据 |
+|---|---|---|
+| Spring（IoC / DI / 事务） | `@Service` `@Configuration` `@Transactional`（`SyncService.push`） | 构造器注入、`WebConfig` 装配过滤器与切面 |
+| Spring MVC | `controller/*Controller.java`、`@RestController` `@RequestMapping` `@RequestBody` `@Valid` | 内嵌 Tomcat 跑 19081/19082；`@Valid` 失败统一转 40001 |
+| MyBatis | `mapper/*Mapper.java` + `resources/mapper/*.xml`（resultMap + 手写 SQL） | 8 条同步 SQL / 3 条用户 SQL 全在 XML，`mybatis-plus.mapper-locations` 指过去 |
+| MyBatis-Plus 高级特性 | `PaginationInnerInterceptor`、逻辑删除、`BaseMapper` | `GET /api/users?page&size` 走插件分页；`deleted` 由全局配置接管 |
+| AOP 切面 | `spore-common/aspect/OpLogAspect`、`PermissionAspect` | `@OpLog` 落 `op_log`（实测有行）；`@RequirePermission` 无权限 403 |
+
+**授权怎么在微服务里落地**：认证在网关（token → 身份），授权在服务（AOP → 权限码）。
+网关调 user 服务 `verify` 时一并取回角色权限码，写进 `X-Spore-Perms` 并纳入 HMAC 签名，
+下游 `@RequirePermission` 切面直接读——不查库、不 RPC，伪造权限头过不了验签。
+
 ## 设计要点
 
 **鉴权链**：网关不解析 token。它拿 `Authorization: Bearer <token>` 调 user 服务的
 `POST /internal/auth/verify`（JWT 与 LAN token 都由 user 服务判），拿到 `{userId, roleId}` 后
-向请求注入 `X-Spore-User/Role/Ts/Sig`，签名原文 `userId|roleId|ts|path`（HMAC-SHA256，
-5 分钟窗口）。下游 servlet 服务用 `IdentityFilter` 验签，**客户端自带的 `X-Spore-*` 在网关先删掉**——
+向请求注入 `X-Spore-User/Role/Perms/Ts/Sig`，签名原文 `userId|roleId|perms|ts|path`
+（HMAC-SHA256，5 分钟窗口）。下游 servlet 服务用 `IdentityFilter` 验签，**客户端自带的 `X-Spore-*` 在网关先删掉**——
 绕过网关直连 19081/19082 伪造身份一律 401。共享密钥走 `SPORE_SIGN_SECRET` 环境变量，
 默认值只适合本机开发。
 
@@ -105,7 +122,7 @@ java -jar spore-gateway/target/spore-gateway-0.1.0-SNAPSHOT.jar
 
 ## 验证记录（本机 Windows，2026-10-30）
 
-`mvn package` 五模块全绿；四进程起齐后 `GET /eureka/apps` 三个服务均 UP。经网关的全链路冒烟 22/22：
+`mvn package` 五模块全绿；四进程起齐后 `GET /eureka/apps` 三个服务均 UP。经网关的全链路冒烟 27/27：
 
 | 用例 | 结果 |
 |---|---|
@@ -120,6 +137,10 @@ java -jar spore-gateway/target/spore-gateway-0.1.0-SNAPSHOT.jar
 | 直连 19082 无身份头 → 40101 | ✅ |
 | 直连伪造 `X-Spore-User` + 假签名 → 401 | ✅ |
 | LAN token 当 Bearer 用（并改绑） | ✅ |
+| `@Valid` 空用户名 → 400 / 40001 | ✅ |
+| 无 `user:manage` → 403（AOP 授权切面） | ✅ |
+| 临时授权 → 分页可用 → 撤销 → 立刻 403 | ✅ |
+| `@OpLog` 切面落 `op_log` 行 | ✅ |
 
 手机端：`assembleDebug` 通过，APK 内 `assets/web/settings.html` 含「账号直连」卡、
 `ServerConnector`/`connectPoll` 进 dex；设置页在浏览器 + 桥桩下 12/12 断言通过（空字段拦截、

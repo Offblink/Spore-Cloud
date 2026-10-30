@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.offblink.spore.cloud.user.mapper.PermissionMapper">
+
+  <select id="codesOfRole" resultType="java.lang.String">
+    SELECT code
+    FROM permission
+    WHERE role_id = #{roleId} AND deleted = 0
+    ORDER BY id
+  </select>
+
+</mapper>

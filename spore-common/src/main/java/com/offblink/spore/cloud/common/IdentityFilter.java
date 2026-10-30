@@ -10,12 +10,15 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * 下游服务的身份过滤器：验网关签名 → 写 {@link IdentityContext}。
  *
  * <p>没有身份头 = 匿名（放行，受保护接口自己用 {@link IdentityContext#requireUserId()} 拦）；
- * 有身份头但验签失败 = 401（防绕过网关伪造 X-Spore-User）。
+ * 有身份头但验签失败 = 401（防绕过网关伪造 X-Spore-User / X-Spore-Perms）。
  * servlet 服务启动时把它注册成 {@code /*} 过滤器（见各服务 WebConfig）。
  */
 public class IdentityFilter implements Filter {
@@ -38,19 +41,34 @@ public class IdentityFilter implements Filter {
         if (userHeader != null || sig != null) {
             Long userId = parseLong(userHeader);
             Long roleId = parseLong(req.getHeader(GatewayHeaders.ROLE));
+            String perms = req.getHeader(GatewayHeaders.PERMS);
             long ts = parseLongOrZero(req.getHeader(GatewayHeaders.TS));
             String path = req.getRequestURI();
-            if (!GatewayHeaders.verify(secret, userId, roleId, ts, path, sig)) {
+            if (!GatewayHeaders.verify(secret, userId, roleId, perms, ts, path, sig)) {
                 unauthorized(resp, "身份签名无效");
                 return;
             }
-            IdentityContext.set(new Identity(userId, roleId));
+            IdentityContext.set(new Identity(userId, roleId, splitPerms(perms)));
         }
         try {
             chain.doFilter(request, response);
         } finally {
             IdentityContext.clear();
         }
+    }
+
+    private static List<String> splitPerms(String perms) {
+        List<String> out = new ArrayList<String>();
+        if (perms == null || perms.trim().isEmpty()) {
+            return out;
+        }
+        for (String p : Arrays.asList(perms.split(","))) {
+            String t = p.trim();
+            if (!t.isEmpty()) {
+                out.add(t);
+            }
+        }
+        return out;
     }
 
     private void unauthorized(HttpServletResponse resp, String message) throws IOException {

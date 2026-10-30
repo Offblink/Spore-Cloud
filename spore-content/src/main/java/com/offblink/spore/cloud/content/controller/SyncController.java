@@ -3,6 +3,7 @@ package com.offblink.spore.cloud.content.controller;
 import com.offblink.spore.cloud.common.ErrorCode;
 import com.offblink.spore.cloud.common.IdentityContext;
 import com.offblink.spore.cloud.common.R;
+import com.offblink.spore.cloud.common.annotation.OpLog;
 import com.offblink.spore.cloud.common.dto.SyncPushReq;
 import com.offblink.spore.cloud.content.service.SyncService;
 import org.springframework.beans.factory.annotation.Value;
@@ -60,6 +61,7 @@ public class SyncController {
 
     /** 手机推题图：文件名 = articleId（扩展名保底 .img），路径写回 article 行 */
     @PostMapping(value = "/push-attachment", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @OpLog("sync.push-attachment")
     public R<Map<String, String>> pushAttachment(@RequestParam String articleId,
                                                  @RequestParam("file") MultipartFile file)
             throws IOException {

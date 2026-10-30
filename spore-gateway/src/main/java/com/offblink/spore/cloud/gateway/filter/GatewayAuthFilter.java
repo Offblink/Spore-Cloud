@@ -98,15 +98,19 @@ public class GatewayAuthFilter implements GlobalFilter, Ordered {
         ServerHttpRequest request = exchange.getRequest().mutate().headers(h -> {
             h.remove(GatewayHeaders.USER);
             h.remove(GatewayHeaders.ROLE);
+            h.remove(GatewayHeaders.PERMS);
             h.remove(GatewayHeaders.TS);
             h.remove(GatewayHeaders.SIG);
             if (identity != null) {
                 long ts = System.currentTimeMillis();
+                // 权限码一起下发并纳入签名：下游 @RequirePermission 切面直接读，不再回查 user 服务
+                String perms = String.join(",", identity.getPerms());
                 h.set(GatewayHeaders.USER, String.valueOf(identity.getUserId()));
                 h.set(GatewayHeaders.ROLE, String.valueOf(identity.getRoleId()));
+                h.set(GatewayHeaders.PERMS, perms);
                 h.set(GatewayHeaders.TS, String.valueOf(ts));
                 h.set(GatewayHeaders.SIG, GatewayHeaders.sign(signSecret,
-                        identity.getUserId(), identity.getRoleId(), ts, path));
+                        identity.getUserId(), identity.getRoleId(), perms, ts, path));
             }
         }).build();
         return exchange.mutate().request(request).build();

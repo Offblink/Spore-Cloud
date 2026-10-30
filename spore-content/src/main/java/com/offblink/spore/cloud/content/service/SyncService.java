@@ -7,8 +7,9 @@ import com.offblink.spore.cloud.common.ErrorCode;
 import com.offblink.spore.cloud.common.dto.SyncPushReq;
 import com.offblink.spore.cloud.content.entity.Article;
 import com.offblink.spore.cloud.content.entity.Category;
-import com.offblink.spore.cloud.content.mapper.SyncMappers.ArticleMapper;
-import com.offblink.spore.cloud.content.mapper.SyncMappers.CategoryMapper;
+import com.offblink.spore.cloud.common.annotation.OpLog;
+import com.offblink.spore.cloud.content.mapper.ArticleMapper;
+import com.offblink.spore.cloud.content.mapper.CategoryMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -95,6 +96,7 @@ public class SyncService {
     }
 
     @Transactional
+    @OpLog("sync.push")
     public Map<String, Object> push(Long userId, SyncPushReq req) {
         if (req == null) {
             throw new BizException(ErrorCode.BAD_REQUEST, "载荷为空");

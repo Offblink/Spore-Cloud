@@ -1,5 +1,8 @@
 package com.offblink.spore.cloud.common.dto;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -10,7 +13,11 @@ public final class UserDtos {
     }
 
     public static class LoginReq {
+        @NotBlank(message = "用户名必填")
+        @Size(max = 64, message = "用户名过长")
         private String username;
+
+        @NotBlank(message = "口令必填")
         private String password;
 
         public String getUsername() {
@@ -31,8 +38,15 @@ public final class UserDtos {
     }
 
     public static class RegisterReq {
+        @NotBlank(message = "用户名必填")
+        @Size(max = 64, message = "用户名过长")
         private String username;
+
+        @NotBlank(message = "口令必填")
+        @Size(min = 6, max = 64, message = "口令需 6-64 位")
         private String password;
+
+        @Size(max = 64, message = "昵称过长")
         private String nickname;
 
         public String getUsername() {

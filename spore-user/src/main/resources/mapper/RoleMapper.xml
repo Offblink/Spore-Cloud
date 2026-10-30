@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.offblink.spore.cloud.user.mapper.RoleMapper">
+
+  <resultMap id="roleMap" type="com.offblink.spore.cloud.user.entity.Role">
+    <id property="id" column="id"/>
+    <result property="code" column="code"/>
+    <result property="name" column="name"/>
+    <result property="remark" column="remark"/>
+    <result property="deleted" column="deleted"/>
+  </resultMap>
+
+  <select id="selectByCode" resultMap="roleMap">
+    SELECT id, code, name, remark, deleted
+    FROM `role`
+    WHERE code = #{code} AND deleted = 0
+    LIMIT 1
+  </select>
+
+</mapper>
