@@ -1,5 +1,10 @@
 # Spore-Cloud
 
+> Microservice backend for the Spore mobile app: Eureka discovery, a Spring Cloud Gateway that
+> validates Bearer tokens and forwards a HMAC-signed identity, and separate user/content services
+> over the shared `spore_cms` schema. Wire-compatible with the Spore-GUI monolith, so the Android
+> client syncs with no code changes.
+
 Spore 移动端（[Spore-Mobile](https://github.com/Offblink/Spore-Mobile)）的微服务后端。
 Spring Cloud 全家桶：**Eureka 服务发现 + Gateway 网关 + 用户/内容两个服务**，协议与
 [Spore-GUI](https://github.com/Offblink/Spore-GUI) 单体后端**逐字段一致**——手机端换了服务端，
