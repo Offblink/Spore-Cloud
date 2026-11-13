@@ -26,7 +26,7 @@ Spring Cloud 全家桶：**Eureka 服务发现 + Gateway 网关 + 用户/内容�
 |---|---|---|---|
 | `spore-registry` | 8761 | Eureka 服务发现（控制台 `/`) | — |
 | `spore-gateway` | 19080 | 唯一入口、`lb://` 路由、Bearer 鉴权、身份签名头 | — |
-| `spore-user` | 19081 | 注册/登录/JWT/LAN token/设备令牌/`users/me` | `user` `role` `permission` `sys_config` |
+| `spore-user` | 19081 | 注册/登录/JWT/扫码票据/`users/me` | `user` `role` `permission` `sys_config` `qr_login_ticket` |
 | `spore-content` | 19082 | `sync/pull` `sync/push` 题图上/下推 | `category` `article` |
 | `spore-common` | — | `R` 包装、错误码、同步 DTO、身份签名与过滤器 | — |
 
@@ -36,7 +36,12 @@ Spring Cloud 全家桶：**Eureka 服务发现 + Gateway 网关 + 用户/内容�
 
 ## 快速开始
 
-前置：JDK 17、Maven、MySQL 8（库 `spore_cms`，表结构见 Spore-GUI 的 `docs/schema.sql`）。
+前置：JDK 17、Maven、MySQL 8（库 `spore_cms`，表结构见 Spore-GUI 的 `docs/schema.sql`；
+扫码登录的票据表是增量，执行一次即可，幂等）：
+
+```bash
+mysql -uroot -p spore_cms < docs/schema-qr-login.sql
+```
 
 ```bash
 # 1) 每个服务第一次跑：把口令写进本机配置（已被 .gitignore 挡住）
@@ -54,10 +59,31 @@ java -jar spore-content/target/spore-content-0.1.0-SNAPSHOT.jar
 java -jar spore-gateway/target/spore-gateway-0.1.0-SNAPSHOT.jar
 ```
 
-网关起来后：`http://<本机局域网IP>:19080/api`。手机设置页 →「配对与同步」→ 展开
-**账号直连服务器**，填地址（`192.168.x.x:19080`，`/api` 自动补）、账号、口令即可。
+网关起来后：`http://<本机局域网IP>:19080/api`。登录方式**只有扫码**（Spore-Mobile v1.7+）：
+
+1. 服务器登录页用账号口令换 web JWT（`POST /api/auth/login`）；
+2. 页面带着这个 JWT 申请一次性票据（`POST /api/auth/qr/ticket`），把
+   `{"v":1,"api":"http://<本机IP>:19080","ticket":"qrl_..."}` 渲染成二维码；
+3. 手机设置页 →「服务器与同步」→ 扫码登录，换到同构 JWT 后开始同步。
 
 首个注册的账号自动是 `ADMIN`（与单体一致，种子只预置角色不预置用户）。
+
+## 扫码登录
+
+协议全文在 Spore-Mobile 的 [`docs/qr-login-server.md`](https://github.com/Offblink/Spore-Mobile/blob/main/docs/qr-login-server.md)，
+服务端实现落在 `spore-user`：
+
+| 位置 | 作用 |
+|---|---|
+| `AuthController#qrTicket` | `POST /api/auth/qr/ticket`，需已登录；票据与申请者绑定，明文只返回一次 |
+| `AuthController#qrExchange` | `POST /api/auth/qr/exchange`，公开；票据 → 与登录同构的 JWT |
+| `QrLoginService` | 签发（32 字节 SecureRandom → `qrl_`+Base64URL）、原子消费、超量作废、每小时清理过期行 |
+| `QrTicketMapper.xml` | 一次性消费是一条 `UPDATE ... WHERE used_at IS NULL AND expires_at > NOW()`，按受影响行数判定 |
+| `GatewayAuthFilter.PUBLIC_PATHS` | 只放行 `/api/auth/qr/exchange`（申请票据仍要 Bearer） |
+
+安全口径：库里只存 `SHA-256(ticket)`；TTL 默认 60s（`SPORE_QR_TTL_SECONDS` 可覆盖）；
+同一用户最多 3 张可用票，第 4 张会把最旧的作废；重复兑换返回 `40102`、过期返回 `40101`；
+日志不打票据明文与 token。
 
 ## 接口
 
@@ -68,10 +94,12 @@ java -jar spore-gateway/target/spore-gateway-0.1.0-SNAPSHOT.jar
 | POST | `/auth/register` | 注册（公开） |
 | POST | `/auth/login` | 登录换 JWT（公开） |
 | POST | `/auth/logout` | 作废当前 JWT |
-| GET | `/auth/lan-token` | 取/改绑 LAN token（扫码配对用） |
-| POST | `/auth/device-token` | 轮换本机设备令牌 |
-| POST | `/auth/device-login` | 设备令牌换 JWT（公开） |
-| GET | `/users/me` | 当前用户 + 权限码（配对连通校验） |
+| POST | `/auth/qr/ticket` | 申请扫码登录票据（需登录）→ `{ticket,expiresIn}` |
+| POST | `/auth/qr/exchange` | 票据换 JWT（公开，一次性）→ `{token,user}` |
+| GET | `/auth/lan-token` | 取/改绑 LAN token（v1.6 及更早客户端用，保留兼容） |
+| POST | `/auth/device-token` | 轮换本机设备令牌（同上，保留兼容） |
+| POST | `/auth/device-login` | 设备令牌换 JWT（公开，保留兼容） |
+| GET | `/users/me` | 当前用户 + 权限码（扫码后连通校验） |
 | GET | `/sync/pull?cursor&limit` | 游标增量（含墓碑），`{categories,articles,nextCursor}` |
 | POST | `/sync/push` | `{categories,articles}` → `{results:[{id,accepted}]}` |
 | POST | `/sync/push-attachment?articleId=` | multipart 字段 `file` → `{path}` |
@@ -125,7 +153,28 @@ Spring Cloud 跑在 Spring Boot 上，所以没有 `web.xml` / `spring-mvc.xml` 
 靠「网关已验证的用户一定存在」这条不变量保证；题图落在 `spore.storage.data-dir`（默认
 `./data/attachments`，相对启动目录）。
 
-## 验证记录（本机 Windows，2026-10-30）
+## 验证记录（本机 Windows，2026-11-13 · 扫码登录）
+
+`mvn -DskipTests package` 五模块全绿。为了不动在跑的那套 1908x 实例，验证起在隔离端口
+（registry `8762` / user `19181` / gateway `19180`）并连一个临时 MySQL 9.3（`3307`，空库 +
+`docs/schema-qr-login.sql`）。经网关的 32 项断言全过：
+
+| 用例 | 结果 |
+|---|---|
+| 无 Bearer 申请票据 → HTTP 401 + `40101` | ✅ |
+| 公开路径可进：伪造票据 → HTTP 401 + `40101`「二维码无效」 | ✅ |
+| 已登录申请票据 → `{ticket,expiresIn}`，`qrl_` + 43 位 Base64URL | ✅ |
+| 兑换 → 与登录同构的 JWT + `user{id,username,nickname}` | ✅ |
+| 换到的 token 过 `/users/me`（同一密钥/同一身份） | ✅ |
+| 同一张票再兑换 → HTTP 401 + `40102`「已被使用」 | ✅ |
+| TTL 到期后兑换 → HTTP 401 + `40101`「已过期」 | ✅ |
+| 空 `ticket` → HTTP 400 + `40001` | ✅ |
+| 连开 4 张：第 4 张签发时最旧的作废，最新一张可兑换；可用数 ≤3 | ✅ |
+| 库表只有哈希：无明文行、`ticket_hash` 长度恒 64 | ✅ |
+| 停用账号兑换 → HTTP 403 + `40301`「账号已停用」 | ✅ |
+| 10 路并发兑换同一张票 → 恰好 1 个 200、9 个 401 | ✅ |
+
+## 验证记录（本机 Windows，2026-10-30 · 同步链路）
 
 `mvn package` 五模块全绿；四进程起齐后 `GET /eureka/apps` 三个服务均 UP。经网关的全链路冒烟 27/27：
 
@@ -147,9 +196,8 @@ Spring Cloud 跑在 Spring Boot 上，所以没有 `web.xml` / `spring-mvc.xml` 
 | 临时授权 → 分页可用 → 撤销 → 立刻 403 | ✅ |
 | `@OpLog` 切面落 `op_log` 行 | ✅ |
 
-手机端：`assembleDebug` 通过，APK 内 `assets/web/settings.html` 含「账号直连」卡、
-`ServerConnector`/`connectPoll` 进 dex；设置页在浏览器 + 桥桩下 12/12 断言通过（空字段拦截、
-载荷正确、成功清口令、状态行更新、失败显示服务端原话、零 JS 报错）。
+手机端：v1.7 起登录只剩扫码（`QrLoginActivity` + `ServerConnector.exchangeQr`），
+`assembleDebug` 通过；设置页的「服务器与同步」卡只保留扫码入口。
 
 ## 安全红线
 

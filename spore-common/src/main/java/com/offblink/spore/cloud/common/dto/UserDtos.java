@@ -196,4 +196,104 @@ public final class UserDtos {
             this.createdTime = createdTime;
         }
     }
+
+    /** 扫码登录：申请票据的响应。{@code ticket} 明文只在这里出现一次。 */
+    public static class QrTicketVO {
+        private String ticket;
+        private long expiresIn;
+
+        public QrTicketVO() {
+        }
+
+        public QrTicketVO(String ticket, long expiresIn) {
+            this.ticket = ticket;
+            this.expiresIn = expiresIn;
+        }
+
+        public String getTicket() {
+            return ticket;
+        }
+
+        public void setTicket(String ticket) {
+            this.ticket = ticket;
+        }
+
+        public long getExpiresIn() {
+            return expiresIn;
+        }
+
+        public void setExpiresIn(long expiresIn) {
+            this.expiresIn = expiresIn;
+        }
+    }
+
+    /** 扫码登录：票据换 token 的响应（{@code token} 与 /auth/login 同构）。 */
+    public static class QrExchangeVO {
+        private String token;
+        private QrUserBrief user;
+
+        public QrExchangeVO() {
+        }
+
+        public QrExchangeVO(String token, QrUserBrief user) {
+            this.token = token;
+            this.user = user;
+        }
+
+        public String getToken() {
+            return token;
+        }
+
+        public void setToken(String token) {
+            this.token = token;
+        }
+
+        public QrUserBrief getUser() {
+            return user;
+        }
+
+        public void setUser(QrUserBrief user) {
+            this.user = user;
+        }
+    }
+
+    /** 扫码登录响应里给手机看的用户摘要（手机随后还会调 /users/me 校验连通）。 */
+    public static class QrUserBrief {
+        private Long id;
+        private String username;
+        private String nickname;
+
+        public QrUserBrief() {
+        }
+
+        public QrUserBrief(Long id, String username, String nickname) {
+            this.id = id;
+            this.username = username;
+            this.nickname = nickname;
+        }
+
+        public Long getId() {
+            return id;
+        }
+
+        public void setId(Long id) {
+            this.id = id;
+        }
+
+        public String getUsername() {
+            return username;
+        }
+
+        public void setUsername(String username) {
+            this.username = username;
+        }
+
+        public String getNickname() {
+            return nickname;
+        }
+
+        public void setNickname(String nickname) {
+            this.nickname = nickname;
+        }
+    }
 }

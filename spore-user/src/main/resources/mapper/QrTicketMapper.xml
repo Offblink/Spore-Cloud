@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 扫码登录票据：resultMap 显式列 → 属性，一次性消费只认 UPDATE 的受影响行数 -->
+<mapper namespace="com.offblink.spore.cloud.user.mapper.QrTicketMapper">
+
+  <resultMap id="ticketMap" type="com.offblink.spore.cloud.user.entity.QrLoginTicket">
+    <id property="id" column="id"/>
+    <result property="ticketHash" column="ticket_hash"/>
+    <result property="userId" column="user_id"/>
+    <result property="expiresAt" column="expires_at"/>
+    <result property="usedAt" column="used_at"/>
+    <result property="createdAt" column="created_at"/>
+  </resultMap>
+
+  <insert id="insertTicket">
+    INSERT INTO qr_login_ticket (ticket_hash, user_id, expires_at, created_at)
+    VALUES (#{ticketHash}, #{userId},
+            DATE_ADD(NOW(), INTERVAL #{ttlSeconds} SECOND),
+            NOW())
+  </insert>
+
+  <!-- 原子消费：并发重复换同一张票时只有一条 UPDATE 命中 -->
+  <update id="consume">
+    UPDATE qr_login_ticket
+       SET used_at = NOW()
+     WHERE ticket_hash = #{ticketHash}
+       AND used_at IS NULL
+       AND expires_at &gt; NOW()
+  </update>
+
+  <select id="selectByHash" resultMap="ticketMap">
+    SELECT id, ticket_hash, user_id, expires_at, used_at, created_at
+    FROM qr_login_ticket
+    WHERE ticket_hash = #{ticketHash}
+    LIMIT 1
+  </select>
+
+  <select id="selectActiveIds" resultType="long">
+    SELECT id
+    FROM qr_login_ticket
+    WHERE user_id = #{userId}
+      AND used_at IS NULL
+      AND expires_at &gt; NOW()
+    ORDER BY id
+  </select>
+
+  <update id="expireByIds">
+    UPDATE qr_login_ticket
+       SET expires_at = NOW()
+     WHERE id IN
+    <foreach collection="ids" item="id" open="(" separator="," close=")">
+      #{id}
+    </foreach>
+  </update>
+
+  <delete id="deleteExpiredBefore">
+    DELETE FROM qr_login_ticket
+    WHERE expires_at &lt; #{before}
+  </delete>
+
+</mapper>

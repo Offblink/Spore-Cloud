@@ -38,11 +38,12 @@ import java.util.List;
 @Component
 public class GatewayAuthFilter implements GlobalFilter, Ordered {
 
-    /** 无需登录的接口（与 Spore-GUI 的拦截器排除项一致） */
+    /** 无需登录的接口（与 Spore-GUI 的拦截器排除项一致；扫码兑换自带一次性票据） */
     private static final List<String> PUBLIC_PATHS = Arrays.asList(
             "/api/auth/login",
             "/api/auth/register",
-            "/api/auth/device-login"
+            "/api/auth/device-login",
+            "/api/auth/qr/exchange"
     );
 
     private final AuthClient authClient;

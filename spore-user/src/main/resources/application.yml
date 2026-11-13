@@ -44,6 +44,9 @@ spore:
     sign-secret: ${SPORE_SIGN_SECRET:spore-cloud-dev-secret}
   jwt:
     expire-hours: 720
+  qr:
+    # 扫码登录票据有效期（秒）：二维码页面到点自动刷新（Spore-Mobile 协议建议 ≤120）
+    ticket-ttl-seconds: ${SPORE_QR_TTL_SECONDS:60}
 
 management:
   endpoints:
