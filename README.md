@@ -60,11 +60,7 @@ java -jar spore-gateway/target/spore-gateway-0.1.0-SNAPSHOT.jar
 ```
 
 网关起来后：`http://<本机局域网IP>:19080/api`。登录方式**只有扫码**（Spore-Mobile v1.7+）：
-
-1. 服务器登录页用账号口令换 web JWT（`POST /api/auth/login`）；
-2. 页面带着这个 JWT 申请一次性票据（`POST /api/auth/qr/ticket`），把
-   `{"v":1,"api":"http://<本机IP>:19080","ticket":"qrl_..."}` 渲染成二维码；
-3. 手机设置页 →「服务器与同步」→ 扫码登录，换到同构 JWT 后开始同步。
+下节的终端脚本出码，手机设置页 →「服务器与同步」→ 扫码登录，换到同构 JWT 后开始同步。
 
 首个注册的账号自动是 `ADMIN`（与单体一致，种子只预置角色不预置用户）。
 
@@ -84,6 +80,27 @@ java -jar spore-gateway/target/spore-gateway-0.1.0-SNAPSHOT.jar
 安全口径：库里只存 `SHA-256(ticket)`；TTL 默认 60s（`SPORE_QR_TTL_SECONDS` 可覆盖）；
 同一用户最多 3 张可用票，第 4 张会把最旧的作废；重复兑换返回 `40102`、过期返回 `40101`；
 日志不打票据明文与 token。
+
+### 终端出码（`tools/qr-login.py`，推荐）
+
+```bash
+pip install segno                      # 只用来算二维码矩阵；其余是标准库
+python tools/qr-login.py               # 自动探测本机局域网 IP + :19080
+python tools/qr-login.py -u demo --api 192.168.1.5:19080
+SPORE_PASSWORD=... python tools/qr-login.py -u demo   # 脚本里跑，口令不进 argv
+```
+
+脚本做的事：账号口令换 JWT → `POST /auth/qr/ticket` → 把
+`{"v":1,"api":"http://<本机IP>:19080/api","ticket":"qrl_…"}` 画成**终端二维码**
+（`▀` 上下半格 + 显式黑白前景/背景色，宽约 45 列、高约 23 行），
+`expiresIn-5s` 到点清屏换一张新票，Ctrl+C 退出。
+
+为什么不做网页：
+- 二维码里的 `api` 必须是**手机能访问的**地址，脚本能自己探测出口网卡 IP；
+  网页只能让用户手填，填 `127.0.0.1` 就是扫完连不上；
+- 终端渲染把极性写死（黑模块 + 白静区），浅色/深色主题扫出来是同一张图，
+  不用赌相机对「反色二维码」的支持；
+- 少一个前端、少一份 vendored QR 编码器，`start-all.cmd` 旁边多敲一条命令即可。
 
 ## 接口
 
