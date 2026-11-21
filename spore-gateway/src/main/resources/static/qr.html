@@ -48,6 +48,7 @@
           padding: 8px 10px; border-radius: 8px; margin-bottom: 12px; }
   @media (prefers-color-scheme: dark) { .warn { background: #2a2110; border-color: #4d3d16; color: #fdb022; } }
   .hidden { display: none !important; }
+  .tip { margin: 12px 0 0; font-size: 12px; line-height: 1.6; opacity: .6; }
 </style>
 </head>
 <body>
@@ -67,6 +68,7 @@
     <input id="p" name="password" type="password" required>
     <button id="go" type="submit">生成二维码</button>
     <div class="err" id="err"></div>
+    <p class="tip" id="tip">只需登录一次：之后打开本页直接出码（设备令牌存在本浏览器里）</p>
   </form>
 
   <div class="qr-wrap" id="qrView">
@@ -86,6 +88,7 @@
   var API = location.origin + '/api';   // 页面自己调接口：同源，不涉及 CORS
   var payloadApi = API;                 // 写进二维码：手机要连的这个地址
   var $ = function (id) { return document.getElementById(id); };
+  var DEV = 'spore.qr.dev', USER = 'spore.qr.user';
   var token = null, timer = null, deadline = 0, ticker = null;
 
   $('sub').textContent = '入口 ' + API;
@@ -102,7 +105,7 @@
   }).catch(function () {
     if (/^(127\.|localhost$)/.test(location.hostname)) $('warn').classList.remove('hidden');
   });
-  $('u').value = localStorage.getItem('spore.qr.user') || '';
+  $('u').value = localStorage.getItem(USER) || '';
 
   function fail(msg) { $('err').textContent = msg || ''; }
 
@@ -148,18 +151,37 @@
     });
   }
 
+  function showLogin(msg) {
+    $('qrView').classList.remove('on');
+    $('login').classList.remove('hidden');
+    $('tip').textContent = msg || '只需登录一次：之后打开本页直接出码（设备令牌存在本浏览器里）';
+  }
+
+  function startView(sessionToken) {
+    token = sessionToken;
+    $('login').classList.add('hidden');
+    $('qrView').classList.add('on');
+    $('p').value = '';
+    fail('');
+    refresh();
+  }
+
+  // 登录后顺手换一张长期设备令牌：下次打开本页走 device-login，不需要账号口令
+  function rememberDevice() {
+    return post('/auth/device-token', {}, true)
+      .then(function (dev) { localStorage.setItem(DEV, dev); })
+      .catch(function () { /* 拿不到就算了，下次再登录一次 */ });
+  }
+
   $('login').addEventListener('submit', function (ev) {
     ev.preventDefault();
     fail('');
     $('go').disabled = true;
     var user = $('u').value.trim();
     post('/auth/login', { username: user, password: $('p').value }).then(function (data) {
+      localStorage.setItem(USER, user);
       token = data.token;
-      localStorage.setItem('spore.qr.user', user);
-      $('login').classList.add('hidden');
-      $('qrView').classList.add('on');
-      $('p').value = '';
-      refresh();
+      return rememberDevice().then(function () { startView(data.token); });
     }).catch(function (e) {
       fail('登录失败：' + e.message);
     }).then(function () { $('go').disabled = false; });
@@ -167,10 +189,24 @@
 
   $('out').addEventListener('click', function () {
     clearInterval(timer); clearInterval(ticker);
+    localStorage.removeItem(DEV);
     token = null; $('qr').innerHTML = '';
-    $('qrView').classList.remove('on');
-    $('login').classList.remove('hidden');
+    showLogin();
     fail('');
+  });
+
+  // 开机：有设备令牌就直接换 JWT 出码，没有才要求登录
+  var saved = localStorage.getItem(DEV);
+  if (!saved) {
+    showLogin();
+    return;
+  }
+  $('tip').textContent = '正在用本浏览器记住的设备令牌登录…';
+  post('/auth/device-login', { deviceToken: saved }).then(function (jwt) {
+    startView(jwt);
+  }).catch(function () {
+    localStorage.removeItem(DEV);
+    showLogin('设备令牌失效了（服务端换过），请重新登录一次');
   });
 })();
 </script>

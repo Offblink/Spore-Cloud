@@ -95,6 +95,11 @@ java -jar spore-gateway/target/spore-gateway-0.1.0-SNAPSHOT.jar
 `/qr.html`、`/qrcode.min.js`、`/qr/info` 都不在 `/api/**` 下，既不经过网关路由，
 也不经过 `GatewayAuthFilter`；页面调接口是同源，不涉及 CORS。
 
+**账号口令只输入一次**：登录成功后会顺带 `POST /api/auth/device-token` 换一张长期设备令牌
+存进本浏览器的 `localStorage`，之后打开本页直接走公开的 `POST /api/auth/device-login` 换 JWT 出码。
+点「换账号」会清掉它。设备令牌在服务端是**单份**（`sys_config.cloud_device_token`），
+在另一个浏览器重新登录会把它轮换掉，旧浏览器下次会回落到登录表单一次。
+
 ### 终端出码（`tools/qr-login.py`）
 
 ```bash
