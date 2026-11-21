@@ -13,7 +13,7 @@ if not exist "%BASE%spore-registry\target\spore-registry-%V%.jar" (
 )
 
 echo [1/4] spore-registry    :8761
-start "spore-registry" /min /d "%BASE%spore-registry" java -jar target\spore-registry-%V%.jar
+start "spore-registry" /min /d "%BASE%spore-registry" "%JAVA_HOME%\bin\java.exe" -jar target\spore-registry-%V%.jar
 
 set /a N=0
 :wait_registry
@@ -25,9 +25,9 @@ goto :wait_registry
 :registry_ready
 
 echo [2/4] spore-user        :19081
-start "spore-user" /min /d "%BASE%spore-user" java -jar target\spore-user-%V%.jar
+start "spore-user" /min /d "%BASE%spore-user" "%JAVA_HOME%\bin\java.exe" -jar target\spore-user-%V%.jar
 echo [3/4] spore-content     :19082
-start "spore-content" /min /d "%BASE%spore-content" java -jar target\spore-content-%V%.jar
+start "spore-content" /min /d "%BASE%spore-content" "%JAVA_HOME%\bin\java.exe" -jar target\spore-content-%V%.jar
 
 echo      等待两个服务注册...（最多 120 秒）
 set /a N=0
@@ -45,7 +45,7 @@ goto :wait_services
 :services_ready
 
 echo [4/4] spore-gateway     :19080
-start "spore-gateway" /min /d "%BASE%spore-gateway" java -jar target\spore-gateway-%V%.jar
+start "spore-gateway" /min /d "%BASE%spore-gateway" "%JAVA_HOME%\bin\java.exe" -jar target\spore-gateway-%V%.jar
 
 echo.
 echo 网关入口 : http://^<本机局域网IP^>:19080/api

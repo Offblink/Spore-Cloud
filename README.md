@@ -45,9 +45,11 @@ mysql -uroot -p spore_cms < docs/schema-qr-login.sql
 
 ```bash
 # 1) 每个服务第一次跑：把口令写进本机配置（已被 .gitignore 挡住）
+#    推荐放模块目录的 config/ 下：运行期加载，改口令不用重新打包，jar 里也不带口令
 cp spore-user/src/main/resources/application-local.yml.example \
-   spore-user/src/main/resources/application-local.yml      # 填 spring.datasource.password
-# spore-content 同理
+   spore-user/config/application-local.yml                  # 填 spring.datasource.password
+# spore-content 同理；放 src/main/resources/ 也能用，但需要重新 mvn package
+# 注意 config/ 是相对工作目录的：手动 java -jar 时先 cd 进模块目录（start-all.cmd 已这样做）
 
 # 2) 打包（父工程一次全打）
 mvn -DskipTests package
