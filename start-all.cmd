@@ -32,10 +32,9 @@ start "spore-content" /min /d "%BASE%spore-content" "%JAVA_HOME%\bin\java.exe" -
 echo      等待两个服务注册...（最多 120 秒）
 set /a N=0
 :wait_services
-set "J="
-for /f "delims=" %%i in ('curl -s --max-time 3 -H "Accept: application/json" %EUREKA%/eureka/apps') do set "J=!J!%%i"
-echo !J! | findstr /C:"SPORE-USER" >nul || goto :services_wait
-echo !J! | findstr /C:"SPORE-CONTENT" >nul || goto :services_wait
+curl -s --max-time 3 -H "Accept: application/json" %EUREKA%/eureka/apps > "%TEMP%\spore-apps.json" 2>nul
+findstr /C:"SPORE-USER" "%TEMP%\spore-apps.json" >nul || goto :services_wait
+findstr /C:"SPORE-CONTENT" "%TEMP%\spore-apps.json" >nul || goto :services_wait
 goto :services_ready
 :services_wait
 set /a N+=1
