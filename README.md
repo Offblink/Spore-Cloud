@@ -62,7 +62,8 @@ java -jar spore-gateway/target/spore-gateway-0.1.0-SNAPSHOT.jar
 ```
 
 网关起来后：`http://<本机局域网IP>:19080/api`。登录方式**只有扫码**（Spore-Mobile v1.7+）：
-下节的终端脚本出码，手机设置页 →「服务器与同步」→ 扫码登录，换到同构 JWT 后开始同步。
+`start-all.cmd` 最后会自动打开扫码页 `http://127.0.0.1:19080/qr.html`，手机端
+设置页 →「服务器与同步」→ 扫码登录，换到同构 JWT 后开始同步。
 
 首个注册的账号自动是 `ADMIN`（与单体一致，种子只预置角色不预置用户）。
 
@@ -83,7 +84,18 @@ java -jar spore-gateway/target/spore-gateway-0.1.0-SNAPSHOT.jar
 同一用户最多 3 张可用票，第 4 张会把最旧的作废；重复兑换返回 `40102`、过期返回 `40101`；
 日志不打票据明文与 token。
 
-### 终端出码（`tools/qr-login.py`，推荐）
+### 网页出码（`http://<本机IP>:19080/qr.html`，推荐）
+
+网关自己吐一个静态页（`spore-gateway/src/main/resources/static/qr.html` + 内置的
+`qrcode.min.js`，不依赖 CDN、不需要额外进程）：填账号口令 → 页面直接画出大二维码 →
+`expiresIn-5s` 自动换票。控制台窗口放不下终端二维码时用它。
+
+页面会向 `GET /qr/info` 要本机局域网地址（与终端脚本同一套「连一下 UDP 目标取出口网卡」
+的判断），所以**哪怕用 127.0.0.1 打开页面，码里编的也是手机能连的局域网地址**。
+`/qr.html`、`/qrcode.min.js`、`/qr/info` 都不在 `/api/**` 下，既不经过网关路由，
+也不经过 `GatewayAuthFilter`；页面调接口是同源，不涉及 CORS。
+
+### 终端出码（`tools/qr-login.py`）
 
 ```bash
 pip install segno                      # 只用来算二维码矩阵；其余是标准库

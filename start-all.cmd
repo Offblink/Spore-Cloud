@@ -51,3 +51,22 @@ echo.
 echo 网关入口 : http://^<本机局域网IP^>:19080/api
 echo 注册中心 : http://localhost:8761
 echo 停止全部 : taskkill /FI "WINDOWTITLE eq spore-*"
+
+
+echo.
+echo [5/5] 等待网关就绪，然后打开扫码登录页面
+set "GW=http://127.0.0.1:19080"
+set /a N=0
+:wait_gateway
+curl -s -o nul --max-time 2 %GW%/actuator/health >nul 2>&1 && goto :gateway_ready
+set /a N+=1
+if !N! GEQ 30 goto :gateway_ready
+ping -n 2 127.0.0.1 >nul
+goto :wait_gateway
+:gateway_ready
+
+echo       页面   %GW%/qr.html（页面里直接显示二维码，60 秒自动换票）
+echo       手机   Spore-Mobile -^> 设置 -^> 服务器与同步 -^> 扫码登录
+echo       终端版 python tools\qr-login.py（要在命令行里出码时用）
+echo.
+start "" "%GW%/qr.html"
